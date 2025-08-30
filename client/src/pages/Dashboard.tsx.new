@@ -1,0 +1,247 @@
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BarChart3, MapPin, Eye, Clock, CheckCircle, AlertTriangle, XCircle, User, Calendar, Award } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { dashboardAPI } from "../services/api";
+import { useToast } from "@/components/ui/use-toast";
+
+interface Report {
+  _id: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high';
+  status: 'pending' | 'investigating' | 'resolved';
+  location: {
+    coordinates: [number, number];
+    address: string;
+  };
+  userId: {
+    fullname: string;
+    email: string;
+  };
+  createdAt: string;
+  images: string[];
+}
+
+interface DashboardData {
+  stats: {
+    totalReports: number;
+    resolvedIssues: number;
+    impactScore: number;
+    joinDate: string;
+  };
+  user: {
+    points: number;
+    level: string;
+    badges: string[];
+  };
+  nextLevel: {
+    name: string;
+    pointsNeeded: number;
+  } | null;
+}
+
+const Dashboard = () => {
+  const [selectedReport, setSelectedReport] = useState<string | null>(null);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [dashboardData, setDashboardData] = useState<DashboardData>({
+    stats: {
+      totalReports: 0,
+      resolvedIssues: 0,
+      impactScore: 0,
+      joinDate: new Date().toISOString()
+    },
+    user: {
+      points: 0,
+      level: 'Scout',
+      badges: []
+    },
+    nextLevel: null
+  });
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [statsResponse, reportsResponse] = await Promise.all([
+        dashboardAPI.getDashboardStats(),
+        dashboardAPI.getUserReports()
+      ]);
+
+      setDashboardData(statsResponse);
+      setReports(reportsResponse.reports);
+      setLoading(false);
+    } catch (error: any) {
+      console.error('Error fetching dashboard data:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to load dashboard data",
+        variant: "destructive"
+      });
+      setLoading(false);
+    }
+  };
+
+  const handleStatusUpdate = async (reportId: string, newStatus: string) => {
+    try {
+      await dashboardAPI.updateReportStatus(reportId, newStatus);
+      toast({
+        title: "Success",
+        description: "Report status has been updated",
+      });
+      fetchDashboardData(); // Refresh data
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to update status",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/20"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
+      case "investigating":
+        return <Badge variant="secondary" className="bg-ocean/10 text-ocean border-ocean/20"><Eye className="w-3 h-3 mr-1" />Investigating</Badge>;
+      case "resolved":
+        return <Badge variant="secondary" className="bg-success/10 text-success border-success/20"><CheckCircle className="w-3 h-3 mr-1" />Resolved</Badge>;
+      default:
+        return <Badge>{status}</Badge>;
+    }
+  };
+
+  const getSeverityBadge = (severity: string) => {
+    switch (severity) {
+      case "high":
+        return <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20"><XCircle className="w-3 h-3 mr-1" />Severe</Badge>;
+      case "medium":
+        return <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/20"><AlertTriangle className="w-3 h-3 mr-1" />Moderate</Badge>;
+      case "low":
+        return <Badge variant="secondary" className="bg-success/10 text-success border-success/20"><CheckCircle className="w-3 h-3 mr-1" />Minor</Badge>;
+      default:
+        return <Badge>{severity}</Badge>;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-20 bg-gradient-card flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen pt-20 bg-gradient-card">
+      <div className="container mx-auto px-4 py-12">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-4 bg-gradient-mangrove bg-clip-text text-transparent">
+            Welcome back, {user?.fullname}!
+          </h1>
+          <p className="text-xl text-muted-foreground">
+            Your environmental protection dashboard
+          </p>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          {[
+            { label: "Total Reports", value: dashboardData.stats.totalReports, icon: BarChart3, color: "text-primary" },
+            { label: "Pending", value: reports.filter(r => r.status === "pending").length, icon: Clock, color: "text-warning" },
+            { label: "Investigating", value: reports.filter(r => r.status === "investigating").length, icon: Eye, color: "text-ocean" },
+            { label: "Resolved", value: dashboardData.stats.resolvedIssues, icon: CheckCircle, color: "text-success" }
+          ].map((stat, index) => {
+            const Icon = stat.icon;
+            return (
+              <Card key={index} className="shadow-nature">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">{stat.label}</p>
+                      <p className="text-2xl font-bold">{stat.value}</p>
+                    </div>
+                    <Icon className={`h-8 w-8 ${stat.color}`} />
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Reports List */}
+        <Card className="shadow-nature">
+          <CardHeader>
+            <CardTitle>Recent Reports</CardTitle>
+            <CardDescription>
+              Your latest submitted reports and their current status
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {reports.map((report) => (
+                <div key={report._id} className="p-4 border rounded-lg">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-semibold">Report #{report._id.slice(-6)}</h3>
+                      <p className="text-sm text-muted-foreground">{report.description}</p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {getSeverityBadge(report.severity)}
+                      {getStatusBadge(report.status)}
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+                    <div className="flex items-center">
+                      <MapPin className="w-4 h-4 mr-1" />
+                      {report.location.address}
+                    </div>
+                    <div>
+                      {new Date(report.createdAt).toLocaleDateString()}
+                    </div>
+                  </div>
+
+                  {report.status !== 'resolved' && (
+                    <div className="flex gap-2">
+                      {report.status === 'pending' && (
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleStatusUpdate(report._id, 'investigating')}
+                        >
+                          Start Investigation
+                        </Button>
+                      )}
+                      <Button 
+                        size="sm" 
+                        variant={report.status === 'investigating' ? 'default' : 'outline'}
+                        onClick={() => handleStatusUpdate(report._id, 'resolved')}
+                      >
+                        Mark as Resolved
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;

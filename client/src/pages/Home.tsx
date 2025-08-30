@@ -1,14 +1,51 @@
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Shield, Zap, Users, Star, Check, TreePine, AlertCircle, BarChart3, Award, MapPin } from "lucide-react";
+import { ArrowRight, Shield, Zap, Users, Star, Check, TreePine, AlertCircle, BarChart3, Award, MapPin, Map, Cloud } from "lucide-react";
 import heroImage from "@/assets/hero-mangroves.jpg";
 import { useAuth } from '../context/AuthContext';
+import axios from 'axios';
+import { useToast } from "@/components/ui/use-toast";
 
 const Home = () => {
   const { isAuthenticated } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [homeData, setHomeData] = useState({
+    stats: [],
+    features: [],
+    testimonials: []
+  });
 
-  const features = [
+  useEffect(() => {
+    const fetchHomeData = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/home/stats');
+        setHomeData(response.data);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching home data:', error);
+        toast({
+          title: "Error",
+          description: "Using fallback data while server connection is restored.",
+          variant: "destructive"
+        });
+        // Use fallback data when API fails
+        setHomeData({
+          stats: stats,
+          features: fallbackFeatures,
+          testimonials: testimonials
+        });
+        setLoading(false);
+      }
+    };
+
+    fetchHomeData();
+  }, []);
+
+  // Fallback features in case API fails
+  const fallbackFeatures = [
     {
       icon: Shield,
       title: "Secure & Reliable",
@@ -142,12 +179,19 @@ const Home = () => {
       <section className="py-16 bg-gradient-card">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            {stats.map((stat, index) => {
-              const Icon = stat.icon;
+            {(loading ? stats : homeData.stats).map((stat, index) => {
+              const iconMap = {
+                'MapPin': MapPin,
+                'Users': Users,
+                'Shield': Shield,
+                'Award': Award
+              };
+              const IconComponent = iconMap[stat.icon] || Shield; // Fallback to Shield if icon not found
+
               return (
                 <Card key={index} className="text-center shadow-nature hover:shadow-floating transition-slow">
                   <CardContent className="pt-6">
-                    <Icon className="h-8 w-8 mx-auto mb-2 text-primary" />
+                    <IconComponent className="h-8 w-8 mx-auto mb-2 text-primary" />
                     <div className="text-3xl font-bold text-primary mb-1">{stat.value}</div>
                     <div className="text-sm text-muted-foreground">{stat.label}</div>
                   </CardContent>
@@ -171,13 +215,20 @@ const Home = () => {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
+            {(loading ? fallbackFeatures : homeData.features).map((feature, index) => {
+              const iconMap = {
+                'TreePine': TreePine,
+                'Cloud': Cloud,
+                'Users': Users,
+                'Map': Map
+              };
+              const IconComponent = iconMap[feature.icon] || feature.icon || Shield; // Use provided icon or fallback to Shield
+              
               return (
                 <Card key={index} className="text-center shadow-nature hover:shadow-floating transition-slow border-border/50 bg-gradient-card">
                   <CardContent className="pt-6">
                     <div className="mb-4 flex justify-center">
-                      <Icon className={`h-12 w-12 ${feature.color}`} />
+                      <IconComponent className={`h-12 w-12 ${feature.color}`} />
                     </div>
                     <h3 className="text-xl font-semibold mb-2 text-foreground">{feature.title}</h3>
                     <p className="text-muted-foreground">{feature.description}</p>

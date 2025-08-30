@@ -6,6 +6,9 @@ import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import authRoutes from "./routes/auth.routes.js";
 import reportRoutes from "./routes/report.routes.js";
+import { default as dashboardRoutes } from "./routes/dashboard.routes.js";
+import leaderboardRoutes from "./routes/leaderboard.routes.js";
+import homeRoutes from "./routes/home.routes.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -39,6 +42,9 @@ app.use(session({
 //Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/home", homeRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {

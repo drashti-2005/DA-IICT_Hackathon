@@ -1,13 +1,15 @@
 import Report from "../models/report.model.js";
+import User from "../models/user.model.js";
+import { calculatePoints } from "../utils/points.utils.js";
 
 // Test endpoint to verify DB connection
 const testCreateReport = async (req, res) => {
   try {
     const testReport = new Report({
-      userId: req.user._id, // authMiddleware se
+      userId: req.user._id,
       location: {
         type: "Point",
-        coordinates: [72.5714, 23.0225], // Example coordinates (Ahmedabad)
+        coordinates: [72.5714, 23.0225],
         address: "Test Location, Ahmedabad"
       },
       damageType: "deforestation",
@@ -17,9 +19,16 @@ const testCreateReport = async (req, res) => {
     });
 
     await testReport.save();
+
+    // Update user's reports and points
+    const user = await User.findById(req.user._id);
+    const points = calculatePoints(testReport);
+    await user.addPoints(points);  // This will also save the user
+
     res.status(201).json({
       message: "Test report created successfully",
-      report: testReport
+      report: testReport,
+      pointsEarned: points
     });
   } catch (error) {
     console.error("Test report creation error:", error);
@@ -50,9 +59,15 @@ const createReport = async (req, res) => {
 
     await newReport.save();
 
+    // Update user's reports and points
+    const user = await User.findById(req.user._id);
+    const points = calculatePoints(newReport);
+    await user.addPoints(points);  // This will also save the user
+
     res.status(201).json({
       message: "Report created successfully",
       report: newReport,
+      pointsEarned: points
     });
   } catch (error) {
     console.error("Create report error:", error);

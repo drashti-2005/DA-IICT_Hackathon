@@ -104,7 +104,10 @@ const Report = () => {
         description: "Thank you for helping protect our mangroves.",
       });
       
-      console.log("Report created:", response);
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 2000);
       
     } catch (error: any) {
       setIsSubmitting(false);

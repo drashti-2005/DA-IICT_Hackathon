@@ -1,59 +1,75 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, MapPin, Eye, Clock, CheckCircle, AlertTriangle, XCircle, User, Calendar, Award } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { dashboardAPI } from "../services/api";
+import { useToast } from "@/components/ui/use-toast";
+import { Report, UserStats, DashboardResponse } from "../types/dashboard";
 
 const Dashboard = () => {
-  const [selectedReport, setSelectedReport] = useState<number | null>(null);
+  const [selectedReport, setSelectedReport] = useState<string | null>(null);
   const { user } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [reports, setReports] = useState<Report[]>([]);
+  const [dashboardData, setDashboardData] = useState<DashboardResponse>({
+    user: {
+      points: 0,
+      level: 'Scout',
+      badges: []
+    },
+    stats: {
+      totalReports: 0,
+      resolvedIssues: 0,
+      impactScore: 0,
+      joinDate: new Date().toISOString()
+    },
+    nextLevel: null
+  });
 
-  // Mock data for reports
-  const reports = [
-    {
-      id: 1,
-      title: "Mangrove Clearing for Development",
-      description: "Large area of mangroves cut down for new resort construction",
-      severity: "severe",
-      status: "pending",
-      location: { lat: 25.7617, lng: -80.1918, name: "Biscayne Bay, FL" },
-      submittedBy: user?.fullname || "EcoWatcher23",
-      timestamp: "2024-01-20T10:30:00Z",
-      photo: true
-    },
-    {
-      id: 2,
-      title: "Oil Spill Contamination",
-      description: "Small oil leak affecting mangrove roots in the northern section",
-      severity: "moderate",
-      status: "investigating",
-      location: { lat: 25.7517, lng: -80.1818, name: "Key Biscayne, FL" },
-      submittedBy: "GreenGuardian",
-      timestamp: "2024-01-19T14:15:00Z",
-      photo: true
-    },
-    {
-      id: 3,
-      title: "Trash Accumulation",
-      description: "Plastic debris and garbage accumulating around mangrove roots",
-      severity: "minor",
-      status: "resolved",
-      location: { lat: 25.7417, lng: -80.1718, name: "Stiltsville, FL" },
-      submittedBy: user?.fullname || "OceanProtector",
-      timestamp: "2024-01-18T09:45:00Z",
-      photo: false
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch dashboard data using our API service
+      const [dashboardResponse, reportsResponse] = await Promise.all([
+        dashboardAPI.getDashboardStats(),
+        dashboardAPI.getUserReports({ limit: 10 })
+      ]);
+
+      setDashboardData(dashboardResponse);
+      setReports(reportsResponse.reports);
+
+      setLoading(false);
+    } catch (error: any) {
+      console.error('Error fetching dashboard data:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to load dashboard data. Please try again.",
+        variant: "destructive"
+      });
+      setLoading(false);
     }
-  ];
-
-  // User stats
-  const userStats = {
-    totalReports: reports.filter(r => r.submittedBy === user?.fullname).length || 3,
-    resolvedIssues: reports.filter(r => r.submittedBy === user?.fullname && r.status === 'resolved').length || 1,
-    impactScore: 94,
-    joinDate: "January 2024"
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-20 bg-gradient-card flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -81,9 +97,25 @@ const Dashboard = () => {
     }
   };
 
-  const handleStatusUpdate = (reportId: number, newStatus: string) => {
-    // Mock status update - in real app would call API
-    console.log(`Updating report ${reportId} to status: ${newStatus}`);
+  const handleStatusUpdate = async (reportId: string, newStatus: string) => {
+    try {
+      await dashboardAPI.updateReportStatus(reportId, newStatus);
+      
+      toast({
+        title: "Status Updated",
+        description: "Report status has been successfully updated.",
+      });
+      
+      // Refresh the reports list
+      fetchDashboardData();
+    } catch (error) {
+      console.error('Error updating report status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update report status. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -113,11 +145,11 @@ const Dashboard = () => {
                     <div className="flex items-center mt-2 space-x-4 text-sm">
                       <div className="flex items-center">
                         <Calendar className="h-4 w-4 mr-1" />
-                        Member since {userStats.joinDate}
+                        Member since {new Date(dashboardData.stats.joinDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                       </div>
                       <div className="flex items-center">
                         <Award className="h-4 w-4 mr-1" />
-                        Impact Score: {userStats.impactScore}%
+                        Impact Score: {dashboardData.stats.impactScore}% • Level: {dashboardData.user.level}
                       </div>
                     </div>
                   </div>
@@ -130,42 +162,46 @@ const Dashboard = () => {
         {/* User Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           {[
-            { label: "Your Reports", value: userStats.totalReports.toString(), icon: BarChart3, color: "text-primary" },
-            { label: "Pending Review", value: "2", icon: Clock, color: "text-warning" },
-            { label: "Under Investigation", value: "1", icon: Eye, color: "text-ocean" },
-            { label: "Resolved Issues", value: userStats.resolvedIssues.toString(), icon: CheckCircle, color: "text-success" }
+            { label: "Your Reports", value: dashboardData.stats.totalReports.toString(), icon: BarChart3, color: "text-primary" },
+            { label: "Pending Review", value: reports.filter(r => r.status === "pending").length.toString(), icon: Clock, color: "text-warning" },
+            { label: "Under Investigation", value: reports.filter(r => r.status === "investigating").length.toString(), icon: Eye, color: "text-ocean" },
+            { label: "Resolved Issues", value: dashboardData.stats.resolvedIssues.toString(), icon: CheckCircle, color: "text-success" }
           ].map((stat, index) => {
             const Icon = stat.icon;
             return (
               <Card key={index} className="shadow-nature">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">{stat.label}</p>
-                      <p className="text-2xl font-bold">{stat.value}</p>
-                    </div>
-                    <Icon className={`h-8 w-8 ${stat.color}`} />
+                  <div>
+                    <p className="text-sm text-muted-foreground">{stat.label}</p>
+                    <p className="text-2xl font-bold">
+                      {stat.label === "Your Reports" ? dashboardData.stats.totalReports :
+                       stat.label === "Resolved Issues" ? dashboardData.stats.resolvedIssues :
+                       stat.label === "Under Investigation" ? 
+                         reports.filter(r => r.status === "investigating").length :
+                       reports.filter(r => r.status === "pending").length}
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  <Icon className={`h-8 w-8 ${stat.color}`} />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
-        <Tabs defaultValue="reports" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="reports">Reports List</TabsTrigger>
-            <TabsTrigger value="map">Map View</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="reports" className="mt-6">
+      <Tabs defaultValue="reports" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="reports">Reports List ({reports.length})</TabsTrigger>
+          <TabsTrigger value="map">Map View</TabsTrigger>
+        </TabsList>          <TabsContent value="reports" className="mt-6">
             <div className="grid gap-6">
               {reports.map((report) => (
-                <Card key={report.id} className="shadow-nature hover:shadow-floating transition-slow">
+                <Card key={report._id} className="shadow-nature hover:shadow-floating transition-slow">
                   <CardHeader>
                     <div className="flex justify-between items-start">
                       <div>
-                        <CardTitle className="text-lg mb-2">{report.title}</CardTitle>
+                        <CardTitle className="text-lg mb-2">Mangrove Damage Report #{report._id.slice(-6)}</CardTitle>
                         <CardDescription className="text-base">
                           {report.description}
                         </CardDescription>
@@ -181,13 +217,13 @@ const Dashboard = () => {
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <MapPin className="w-4 h-4" />
-                          {report.location.name}
+                          {report.location.address}
                         </div>
                         <div>
-                          Reported by: <span className="font-medium">{report.submittedBy}</span>
+                          Reported by: <span className="font-medium">{report.userId.fullname}</span>
                         </div>
                         <div>
-                          {new Date(report.timestamp).toLocaleDateString()}
+                          {new Date(report.createdAt).toLocaleDateString()}
                         </div>
                       </div>
                       
@@ -195,7 +231,7 @@ const Dashboard = () => {
                         <div className="flex gap-2 pt-2">
                           <Button 
                             size="sm" 
-                            onClick={() => handleStatusUpdate(report.id, "investigating")}
+                            onClick={() => handleStatusUpdate(report._id, "investigating")}
                             className="bg-gradient-ocean"
                           >
                             Start Investigation
@@ -203,7 +239,7 @@ const Dashboard = () => {
                           <Button 
                             size="sm" 
                             variant="outline"
-                            onClick={() => handleStatusUpdate(report.id, "resolved")}
+                            onClick={() => handleStatusUpdate(report._id, "resolved")}
                           >
                             Mark as Resolved
                           </Button>
@@ -214,7 +250,7 @@ const Dashboard = () => {
                         <div className="flex gap-2 pt-2">
                           <Button 
                             size="sm" 
-                            onClick={() => handleStatusUpdate(report.id, "resolved")}
+                            onClick={() => handleStatusUpdate(report._id, "resolved")}
                             className="bg-gradient-mangrove"
                           >
                             Mark as Resolved
@@ -222,7 +258,7 @@ const Dashboard = () => {
                           <Button 
                             size="sm" 
                             variant="outline"
-                            onClick={() => handleStatusUpdate(report.id, "pending")}
+                            onClick={() => handleStatusUpdate(report._id, "pending")}
                           >
                             Back to Pending
                           </Button>

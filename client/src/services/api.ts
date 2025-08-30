@@ -37,6 +37,38 @@ api.interceptors.response.use(
   }
 );
 
+// Dashboard API functions
+export const dashboardAPI = {
+  // Get dashboard stats
+  getDashboardStats: async () => {
+    const response = await api.get('/dashboard/stats');
+    return response.data;
+  },
+
+  // Get user reports
+  getUserReports: async (params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    damageType?: string;
+  }) => {
+    const response = await api.get('/dashboard/reports', { params });
+    return response.data;
+  },
+
+  // Update report status
+  updateReportStatus: async (reportId: string, status: string) => {
+    const response = await api.patch(`/dashboard/reports/${reportId}/status`, { status });
+    return response.data;
+  },
+
+  // Get leaderboard data
+  getLeaderboard: async () => {
+    const response = await api.get('/dashboard/leaderboard');
+    return response.data;
+  }
+};
+
 // Report API functions
 export const reportAPI = {
   // Create a new report
@@ -84,6 +116,33 @@ export const reportAPI = {
   // Test create report (for debugging)
   testCreateReport: async () => {
     const response = await api.post('/reports/test');
+    return response.data;
+  }
+};
+
+// Leaderboard API functions
+export const leaderboardAPI = {
+  // Get global leaderboard
+  getGlobalLeaderboard: async () => {
+    const response = await api.get('/leaderboard/global');
+    return response.data;
+  },
+
+  // Get regional leaderboard
+  getRegionalLeaderboard: async (region: string) => {
+    const response = await api.get('/leaderboard/regional', { params: { region } });
+    return response.data;
+  },
+
+  // Get community stats
+  getCommunityStats: async () => {
+    const response = await api.get('/leaderboard/community-stats');
+    return response.data;
+  },
+
+  // Get user's progress and achievements
+  getUserProgress: async () => {
+    const response = await api.get('/leaderboard/progress');
     return response.data;
   }
 };
