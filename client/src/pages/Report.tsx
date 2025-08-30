@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { AlertCircle, Camera, MapPin, Upload, CheckCircle } from "lucide-react";
+import { reportAPI } from "@/services/api";
 
 const Report = () => {
   const { toast } = useToast();
@@ -14,7 +15,8 @@ const Report = () => {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [formData, setFormData] = useState({
     description: "",
-    severity: "moderate",
+    severity: "medium", // Changed from "moderate" to "medium" to match backend enum
+    damageType: "other", // Added damageType field required by backend
     photo: null as File | null
   });
 
@@ -77,15 +79,43 @@ const Report = () => {
 
     setIsSubmitting(true);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Prepare data for API call
+      const reportData = {
+        location: {
+          type: "Point",
+          coordinates: [location.lng, location.lat] as [number, number], // [longitude, latitude]
+          address: `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` // Simple address format
+        },
+        damageType: formData.damageType,
+        description: formData.description.trim(),
+        severity: formData.severity,
+        images: formData.photo ? [`photo_${Date.now()}.jpg`] : ["placeholder_image.jpg"] // For now, using placeholder
+      };
+
+      // Make API call to create report
+      const response = await reportAPI.createReport(reportData);
+      
       setIsSubmitting(false);
       setSubmitted(true);
+      
       toast({
         title: "Report submitted successfully!",
         description: "Thank you for helping protect our mangroves.",
       });
-    }, 2000);
+      
+      console.log("Report created:", response);
+      
+    } catch (error: any) {
+      setIsSubmitting(false);
+      console.error("Error submitting report:", error);
+      
+      toast({
+        title: "Error submitting report",
+        description: error.response?.data?.message || "Please try again later.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (submitted) {
@@ -105,7 +135,7 @@ const Report = () => {
                 <div><strong>Location:</strong> {location?.lat.toFixed(4)}, {location?.lng.toFixed(4)}</div>
               </div>
               <div className="flex gap-4 justify-center">
-                <Button onClick={() => { setSubmitted(false); setFormData({ description: "", severity: "moderate", photo: null }); setLocation(null); }}>
+                <Button onClick={() => { setSubmitted(false); setFormData({ description: "", severity: "medium", damageType: "other", photo: null }); setLocation(null); }}>
                   Submit Another Report
                 </Button>
                 <Button variant="outline" onClick={() => window.location.href = "/dashboard"}>
@@ -186,14 +216,41 @@ const Report = () => {
                   </div>
                 </div>
 
+                {/* Damage Type */}
+                <div className="space-y-2">
+                  <Label className="text-base font-medium">Damage Type *</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: "deforestation", label: "Deforestation" },
+                      { value: "pollution", label: "Pollution" },
+                      { value: "natural_disaster", label: "Natural Disaster" },
+                      { value: "encroachment", label: "Encroachment" },
+                      { value: "other", label: "Other" }
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, damageType: option.value }))}
+                        className={`p-3 border-2 rounded-lg text-center transition-nature ${
+                          formData.damageType === option.value 
+                            ? "border-primary text-primary bg-primary/5" 
+                            : "border-border text-muted-foreground hover:border-primary"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Severity Level */}
                 <div className="space-y-2">
                   <Label className="text-base font-medium">Damage Severity</Label>
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { value: "minor", label: "Minor", color: "border-success text-success" },
-                      { value: "moderate", label: "Moderate", color: "border-warning text-warning" },
-                      { value: "severe", label: "Severe", color: "border-destructive text-destructive" }
+                      { value: "low", label: "Low", color: "border-success text-success" },
+                      { value: "medium", label: "Medium", color: "border-warning text-warning" },
+                      { value: "high", label: "High", color: "border-destructive text-destructive" }
                     ].map((option) => (
                       <button
                         key={option.value}
