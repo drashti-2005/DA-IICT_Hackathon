@@ -5,6 +5,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import authRoutes from "./routes/auth.routes.js";
+import reportRoutes from "./routes/report.routes.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -23,8 +24,21 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan("dev"));
 app.use(cookieParser());
 
+// Session configuration
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
 //Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/reports", reportRoutes);
 
 // Health check endpoint
 app.get("/api/health", (req, res) => {
@@ -66,17 +80,25 @@ console.log("🚀 Server starting on port:", process.env.PORT || 5000);
 // Start server and attempt database connection
 const startServer = async () => {
   try {
+    console.log("📡 Attempting to connect to MongoDB...");
+    console.log("🔗 MongoDB URI:", process.env.MONGODB_URI ? "URI is set" : "URI is missing!");
     await dbConnect();
+    console.log("✅ MongoDB connection successful!");
   } catch (error) {
-    console.log("⚠️  Database connection failed, but server will continue");
+    console.error("❌ Database connection failed:", error.message);
+    console.error("Stack:", error.stack);
+    console.log("⚠️  Check your MONGODB_URI in .env file");
   }
-  
+
+  // Start the server regardless of database connection
   app.listen(process.env.PORT || 5000, () => {
     console.log(`✅ Server running on http://localhost:${process.env.PORT || 5000}`);
     console.log("📋 Available endpoints:");
     console.log("   GET /api/health - Health check");
     console.log("   POST /api/auth/register - Register new user");
     console.log("   POST /api/auth/login - Login user");
+    console.log("   POST /api/reports - Create report");
+    console.log("   GET /api/reports - Get all reports");
   });
 };
 
